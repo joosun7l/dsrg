@@ -1,0 +1,15 @@
+setup.py
+CRF.egg-info/PKG-INFO
+CRF.egg-info/SOURCES.txt
+CRF.egg-info/dependency_links.txt
+CRF.egg-info/top_level.txt
+krahenbuhl2013/CRF.py
+krahenbuhl2013/__init__.py
+krahenbuhl2013/wrapper.cpp
+src/densecrf.cpp
+src/densecrf_wrapper.cpp
+src/labelcompatibility.cpp
+src/pairwise.cpp
+src/permutohedral.cpp
+src/unary.cpp
+src/util.cpp
