@@ -1,2 +1,3 @@
-datalist/
+*.pickle
 *.pth
+*.gz
