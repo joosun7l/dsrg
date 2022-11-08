@@ -40,7 +40,7 @@ def single_generate_seed_step(params):
     
     label_map = label_map.cpu().numpy()
     target = target.cpu().numpy()
-    label = label.cpu().numpy()
+    label = label.cpu().detach().numpy()
     cls_index = np.where(target > 0.5)[2] 
     for c in cls_index:
         mat = (label_map == (c+1))

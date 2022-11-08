@@ -3,6 +3,7 @@ import os
 import torch
 import torch.optim
 import network as models
+import network.SEAM as SEAM
 from tensorboardX import SummaryWriter
 import numpy as np
 from tqdm import tqdm
@@ -17,7 +18,10 @@ import torchvision.utils as vutils
 import torch.nn.functional as F
 import torch.nn as nn
 from torchvision.utils import save_image
+import cv2
 
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"  # Arrange GPU devices starting from 0
+os.environ["CUDA_VISIBLE_DEVICES"]= "0"  # Set the GPU 2 to use
 
 def gpu_allocation(input_tensor, gpu):
     if gpu is not None:
@@ -25,7 +29,7 @@ def gpu_allocation(input_tensor, gpu):
     return input_tensor
 
 def grid_prepare(images, outputs, gt_maps, gt_maps_new, true_gt_imgs, batch_size):
-    displaynum = 8
+    displaynum = 16
     width, height = 100, 100
     size = (width, height)
     images = images.clone().detach().data.cpu()
@@ -61,6 +65,7 @@ def grid_prepare(images, outputs, gt_maps, gt_maps_new, true_gt_imgs, batch_size
     gt_maps = F.interpolate(gt_maps, size=size)
     where_seed = torch.sum(gt_maps, 1)
     _, gt_maps = torch.max(gt_maps, dim=1) 
+
     gt_maps = torch.where(where_seed>0, gt_maps, torch.tensor([-1]))           
     gt_maps_color = torch.zeros(batch_size, 3, width, height)
     
@@ -120,11 +125,17 @@ def main():
     print(args.model)
     model = models.__dict__[args.arch](num_classes=num_classes)
     model = load_model(model, args.resume)   
-                
+
+    #classfication
+    model_cls = SEAM.Net()
+    weights_dict = torch.load('/home/joosunki/private/dsrg/network/resnet38_SEAM.pth')
+    model_cls.load_state_dict(weights_dict, strict=False)
+    model_clsDP = torch.nn.DataParallel(model_cls).cuda()
+
     if args.gpu is not None:
         torch.cuda.set_device(args.gpu)
         model = model.cuda(args.gpu)
-
+        
     optimizer = torch.optim.SGD([
         {'params': get_parameters(model, bias=False, final=False), 'lr':args.lr, 'weight_decay': args.wd},
         {'params': get_parameters(model, bias=True, final=False), 'lr':args.lr * 2, 'weight_decay': 0},
@@ -138,18 +149,23 @@ def main():
     model.train()
     
     val_loader = data_loader(args, debugflag=True)
-    # val_data_iter = iter(val_loader)
+    val_data_iter = iter(val_loader)
     
     for global_iter in train_t:
         try:
-            images, targets, gt_maps, true_gt_imgs = next(data_iter)
+            images, targets, gt_maps_, true_gt_imgs,img = next(data_iter)
         except:
             data_iter = iter(data_loader(args))
-            images, targets, gt_maps, true_gt_imgs = next(data_iter)
+            images, targets, gt_maps_, true_gt_imgs,img = next(data_iter)
 
-        images = gpu_allocation(images, args.gpu)
+        gt_maps,cam_d_norm = model_clsDP(images)
+        # gt_maps[:,0:1] = gt_maps[:,0:1]/100
+
+        images_ = gpu_allocation(images, args.gpu)
+        images = gpu_allocation(img, args.gpu)
         targets = gpu_allocation(targets, args.gpu)
         gt_maps = gpu_allocation(gt_maps, args.gpu)
+        gt_maps_ = gpu_allocation(gt_maps_, args.gpu)
         true_gt_imgs = gpu_allocation(true_gt_imgs, args.gpu)
         outputs = model(images)
         
@@ -177,18 +193,22 @@ def main():
         with torch.no_grad():
             if global_iter % 20 == 0:
                 val_data_iter = iter(val_loader)
-                val_images, val_targets, val_gt_maps, val_true_gt_imgs = next(val_data_iter)    
+                val_images, val_targets, val_gt_maps, val_true_gt_imgs,img = next(val_data_iter)    
+
+                val_gt_maps,_ = model_clsDP(val_images)
                 
                 val_images, val_true_gt_imgs, val_outputs, val_gt_maps, val_gt_map_new\
-                    = validation(val_images, val_targets, val_gt_maps, val_true_gt_imgs, model, args, num_classes)
+                    = validation(img, val_targets, val_gt_maps, val_true_gt_imgs, model, args, num_classes)
                     
                 images_row, outputs_row, gt_maps_row, gt_maps_new_row, true_gt_imgs_row\
                     = grid_prepare(val_images, val_outputs, val_gt_maps, val_gt_map_new, val_true_gt_imgs, 8)
  
                 images_row, outputs_row, gt_maps_row, gt_maps_new_row, true_gt_imgs_row\
-                    = grid_prepare(images, outputs, gt_maps, gt_map_new, true_gt_imgs, args.batch_size)
+                    = grid_prepare(images, outputs, gt_maps, gt_maps_, true_gt_imgs, args.batch_size)
          
-                grid_image = torch.cat((images_row, true_gt_imgs_row, outputs_row, gt_maps_row, gt_maps_new_row), dim=1)
+                grid_image = torch.cat((images_row, outputs_row, gt_maps_row, gt_maps_new_row), dim=1)
+                # grid_image = torch.cat((gt_maps_new_row,gt_maps_row,images_row), dim=1)
+                save_image(grid_image,'test.png')
                 writer.add_image(args.name, grid_image, global_iter)
                 writer.close()
         

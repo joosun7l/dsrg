@@ -1,7 +1,6 @@
 from torch.utils.data import DataLoader
 from .dataset.voc import VOCDataset
 
-
 def data_loader(args, debugflag=False):
     datalist = args.train_list
 
@@ -24,7 +23,7 @@ def data_loader(args, debugflag=False):
     if debugflag:
         dataset_loader = DataLoader(
             dataset,
-            batch_size=8,
+            batch_size=args.batch_size,
             num_workers=args.workers
         )
     else:

@@ -1,13 +1,12 @@
 #!/bin/bash
-gpu=0
 name=1
 arch=deeplab_large_fov
 resume='./datalist/PascalVOC/vgg16_20M_custom.pth'
 dataset="PascalVOC"
-data='./dataset/PascalVOC/VOCdevkit/VOC2012'
+data='/home/joosunki/shared/VOC/VOCdevkit/VOC2012'
 gt_root='./datalist/PascalVOC/localization_cues.pickle'
 train_list='./datalist/PascalVOC/input_list.txt'
-batch=4
+batch=16
 gamma=0.1
 max_iter=8000
 stepsize=2000
@@ -16,6 +15,7 @@ wd=0.0005
 lr=0.0005
 thre_fg=0.85
 thre_bg=0.99
+gpu=0
 
 python3.8 main.py \
     --arch ${arch} \
@@ -32,5 +32,5 @@ python3.8 main.py \
     --wd ${wd} \
     --resume ${resume} \
     --thre-bg ${thre_bg} \
-    --thre-fg ${thre_fg}\
+    --thre-fg ${thre_fg} \
     --gpu ${gpu}
